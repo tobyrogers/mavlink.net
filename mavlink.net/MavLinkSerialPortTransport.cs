@@ -10,7 +10,7 @@ using System.Collections.Concurrent;
 using System.Threading;
 
 
-namespace ConsoleListener
+namespace MavLinkNet
 {
     public class MavLinkSerialPortTransport : MavLinkGenericTransport
     {
@@ -22,12 +22,19 @@ namespace ConsoleListener
         private AutoResetEvent mSendSignal = new AutoResetEvent(false);
         private MavLinkAsyncWalker mMavLink = new MavLinkAsyncWalker();
         private SerialPort mSerialPort;
+        private string mPortName;
+        private int mBaudRate;
 
+        public MavLinkSerialPortTransport(string portName, int baudRate)
+        {
+            mPortName = portName;
+            mBaudRate = baudRate;
+        }
 
         public override void Initialize()
         {
             InitializeMavLink();
-            InitialiseSerialPort("COM3", 115200); //9600
+            InitialiseSerialPort(mPortName, mBaudRate); //9600
         }
 
         public override void Dispose()
@@ -44,8 +51,16 @@ namespace ConsoleListener
 
         private void InitialiseSerialPort(string portName, int baudRate)
         {
-            mSerialPort = new SerialPort(portName, baudRate);
+//            _serialPort = new System.IO.Ports.SerialPort("/dev/ttys1", 19200, System.IO.Ports.Parity.None, 8, System.IO.Ports.StopBits.One);
+//            mSerialPort.Encoding = System.Text.Encoding.Default;
+//            _serialPort.WriteTimeout = 1000;
+//            _serialPort.DataReceived += OnDataReceived;
+//            _serialPort.Open();
+
+            mSerialPort = new SerialPort(portName, baudRate, System.IO.Ports.Parity.None, 8, System.IO.Ports.StopBits.One);
+            mSerialPort.Encoding = System.Text.Encoding.Default;
             mSerialPort.DataReceived += DataReceived;
+            //mSerialPort.WriteTimeout = 1000;
             mSerialPort.Open();
 
             Console.WriteLine("BaudRate {0}", mSerialPort.BaudRate);

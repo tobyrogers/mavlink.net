@@ -3,8 +3,6 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProductVersion>10.0.0</ProductVersion>
-    <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{D865FF9A-5D23-4E9D-818C-AAA7DCD54955}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>MavLinkGen</RootNamespace>
@@ -40,7 +38,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\mavlinkobjectgenerator\mavlinkobjectgenerator.csproj">
-      <Project>{4cd09dd8-735e-465e-96e7-58f3336c3030}</Project>
+      <Project>{4CD09DD8-735E-465E-96E7-58F3336C3030}</Project>
       <Name>mavlinkobjectgenerator</Name>
     </ProjectReference>
   </ItemGroup>
