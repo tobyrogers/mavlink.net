@@ -1,13 +1,16 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using MavLinkNet;
 using System.IO;
 using System.IO.Ports;
-using System.Collections.Concurrent;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
+using MavLinkNet;
+using System.ComponentModel;
 
 
 namespace MavLinkNet
@@ -24,6 +27,9 @@ namespace MavLinkNet
         private SerialPort mSerialPort;
         private string mPortName;
         private int mBaudRate;
+        private int mFd;
+        private EventHandlerList mEventList;
+        object mDataReceived;
 
         public MavLinkSerialPortTransport(string portName, int baudRate)
         {
@@ -49,25 +55,68 @@ namespace MavLinkNet
             mMavLink.PacketReceived += HandlePacketReceived;
         }
 
-        private void InitialiseSerialPort(string portName, int baudRate)
+        static bool IsWindows 
         {
-//            _serialPort = new System.IO.Ports.SerialPort("/dev/ttys1", 19200, System.IO.Ports.Parity.None, 8, System.IO.Ports.StopBits.One);
-//            mSerialPort.Encoding = System.Text.Encoding.Default;
-//            _serialPort.WriteTimeout = 1000;
-//            _serialPort.DataReceived += OnDataReceived;
-//            _serialPort.Open();
+            get 
+            {
+                PlatformID id = Environment.OSVersion.Platform;
+                return id == PlatformID.Win32Windows || id == PlatformID.Win32NT; // WinCE not supported
+            }
+        }
 
-            mSerialPort = new SerialPort(portName, baudRate, System.IO.Ports.Parity.None, 8, System.IO.Ports.StopBits.One);
-            mSerialPort.Encoding = System.Text.Encoding.Default;
-            mSerialPort.DataReceived += DataReceived;
-            //mSerialPort.WriteTimeout = 1000;
+        private void InitialiseSerialPort(string portName, int baudRate)
+        {       
+            mSerialPort = new SerialPort(portName, baudRate);
+            mSerialPort.DataReceived += DataReceived; // this does not work on mono
             mSerialPort.Open();
 
-            Console.WriteLine("BaudRate {0}", mSerialPort.BaudRate);
+            if (!IsWindows)
+            {
+                FieldInfo fieldInfo = mSerialPort.BaseStream.GetType().GetField("fd", BindingFlags.Instance | BindingFlags.NonPublic);
+                mFd = (int)fieldInfo.GetValue(mSerialPort.BaseStream);
+                fieldInfo = typeof(SerialPort).GetField("data_received", BindingFlags.Instance | BindingFlags.NonPublic);
+                mDataReceived = fieldInfo.GetValue(mSerialPort);
+                PropertyInfo propertyInfo = typeof(SerialPort).GetProperty("Events", BindingFlags.Instance | BindingFlags.NonPublic);
+                mEventList = (EventHandlerList)propertyInfo.GetValue(mSerialPort,null);
+                new System.Threading.Thread(new System.Threading.ThreadStart(this.EventThreadFunction)).Start();
+            }               
 
             ThreadPool.QueueUserWorkItem(new WaitCallback(ProcessReceiveQueue));
         }
 
+        [DllImport ("libc")]
+        static extern IntPtr strerror (int errnum);
+
+        [DllImport ("MonoPosixHelper", SetLastError = true)]
+        static extern bool poll_serial (int fd, out int error, int timeout);
+
+        private bool Poll()
+        {
+            int error;
+            bool poll_result = poll_serial (mFd, out error, mSerialPort.ReadTimeout);
+            if (error == -1) {
+                int errnum = Marshal.GetLastWin32Error ();
+                string error_message = Marshal.PtrToStringAnsi (strerror (errnum));
+                throw new IOException (error_message);
+            }
+            return poll_result;
+        }
+
+        private void EventThreadFunction( )
+        {
+            do
+            {
+                if (Poll())
+                {
+                    SerialDataReceivedEventHandler handler = (SerialDataReceivedEventHandler) mEventList[mDataReceived];
+                    if (handler != null) {
+                        handler (this, null);
+                    }
+                }
+            }
+            while (mSerialPort.IsOpen);
+        }
+            
         // __ Receive _________________________________________________________
 
 
